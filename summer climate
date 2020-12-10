@@ -1,0 +1,111 @@
+# Package ID: knb-lter-ntl.18.30 Cataloging System:https://pasta.edirepository.org.
+# Data set title: Minocqua Dam Daily Meteorological Data at North Temperate Lakes LTER 1978 - current.
+# Data set creator:  Timothy Kratz - University of Wisconsin 
+# Metadata Provider:  NTL Information Manager - University of Wisconsin 
+# Contact:  NTL Information Manager -  University of Wisconsin  - ntl.infomgr@gmail.com
+# Stylesheet v2.11 for metadata conversion into program: John H. Porter, Univ. Virginia, jporter@virginia.edu 
+
+inUrl1  <- "https://pasta.lternet.edu/package/data/eml/knb-lter-ntl/18/30/34ec9386a894ba332529349d24154333" 
+infile1 <- tempfile()
+try(download.file(inUrl1,infile1,method="curl"))
+if (is.na(file.size(infile1))) download.file(inUrl1,infile1,method="auto")
+
+
+dt1 <-read.csv(infile1,header=F 
+               ,skip=1
+               ,sep=","  
+               ,quot='"' 
+               , col.names=c(
+                 "year4",     
+                 "sampledate",     
+                 "min_air_temp",     
+                 "max_air_temp",     
+                 "precip",     
+                 "snow",     
+                 "snow_depth",     
+                 "data_status"    ), check.names=TRUE)
+
+unlink(infile1)
+
+# Fix any interval or ratio columns mistakenly read in as nominal and nominal columns read as numeric or dates read as strings
+
+if (class(dt1$year4)=="factor") dt1$year4 <-as.numeric(levels(dt1$year4))[as.integer(dt1$year4) ]               
+if (class(dt1$year4)=="character") dt1$year4 <-as.numeric(dt1$year4)                                   
+# attempting to convert dt1$sampledate dateTime string to R date structure (date or POSIXct)                                
+tmpDateFormat<-"%Y-%m-%d"
+tmp1sampledate<-as.Date(dt1$sampledate,format=tmpDateFormat)
+# Keep the new dates only if they all converted correctly
+if(length(tmp1sampledate) == length(tmp1sampledate[!is.na(tmp1sampledate)])){dt1$sampledate <- tmp1sampledate } else {print("Date conversion failed for dt1$sampledate. Please inspect the data and do the date conversion yourself.")}                                                                    
+rm(tmpDateFormat,tmp1sampledate) 
+if (class(dt1$min_air_temp)=="factor") dt1$min_air_temp <-as.numeric(levels(dt1$min_air_temp))[as.integer(dt1$min_air_temp) ]               
+if (class(dt1$min_air_temp)=="character") dt1$min_air_temp <-as.numeric(dt1$min_air_temp)
+if (class(dt1$max_air_temp)=="factor") dt1$max_air_temp <-as.numeric(levels(dt1$max_air_temp))[as.integer(dt1$max_air_temp) ]               
+if (class(dt1$max_air_temp)=="character") dt1$max_air_temp <-as.numeric(dt1$max_air_temp)
+if (class(dt1$precip)=="factor") dt1$precip <-as.numeric(levels(dt1$precip))[as.integer(dt1$precip) ]               
+if (class(dt1$precip)=="character") dt1$precip <-as.numeric(dt1$precip)
+if (class(dt1$snow)=="factor") dt1$snow <-as.numeric(levels(dt1$snow))[as.integer(dt1$snow) ]               
+if (class(dt1$snow)=="character") dt1$snow <-as.numeric(dt1$snow)
+if (class(dt1$snow_depth)=="factor") dt1$snow_depth <-as.numeric(levels(dt1$snow_depth))[as.integer(dt1$snow_depth) ]               
+if (class(dt1$snow_depth)=="character") dt1$snow_depth <-as.numeric(dt1$snow_depth)
+if (class(dt1$data_status)!="factor") dt1$data_status<- as.factor(dt1$data_status)
+
+# Convert Missing Values to NA for non-dates
+
+
+
+# Here is the structure of the input data frame:
+str(dt1)                            
+attach(dt1)                            
+# The analyses below are basic descriptions of the variables. After testing, they should be replaced.                 
+
+summary(year4)
+summary(sampledate)
+summary(min_air_temp)
+summary(max_air_temp)
+summary(precip)
+summary(snow)
+summary(snow_depth)
+summary(data_status) 
+# Get more details on character variables
+
+summary(as.factor(dt1$data_status))
+detach(dt1)               
+
+#=================================================
+# Analysis
+library(tidyverse)
+library(lubridate)
+
+#Rename the data set to something that makes sense
+ntl = dt1 %>%
+  rename(year = year4) %>%
+  # Convert the sampling date to day of year and other useful calendar values
+  mutate(year = as.numeric(year),
+         date = ymd(sampledate),
+         date = as.POSIXct(date),
+         doy = yday(date))
+  
+#Filter the daily data down to the summer time (May 1 through August 31)
+summer = ntl %>%
+  filter(doy>=121, doy<=243) %>%
+  
+  #Create annual summer time means
+  #mean_Temp is the "mean" daily temp (based on diff between min and max)
+  group_by(year) %>%
+  summarize(mean_ppt = mean(precip, na.rm = T), #mean daily precipitation
+            mean_maxTemp = mean(max_air_temp, na.rm =T ), #mean maximum air temp
+            mean_Temp = mean(min_air_temp + ((max_air_temp - min_air_temp)/2), na.rm = T)) %>%
+  ungroup()
+
+#Summer Data
+plot(summer$year, summer$mean_ppt, type="o", pch=19, col="dodgerblue3")
+plot(summer$year, summer$mean_Temp, type="o", pch=19, col="darkorange2")
+
+plot(summer$mean_Temp, summer$mean_ppt, pch=20, col="white",
+     xlab="Mean Summer Daily Temp (C)", ylab="Mean Summer Daily Precipitation (mm)", 
+     xlim=c(13,19), ylim=c(1,6))
+text(18.75,5.85, "Warm\n  Wet", font=2, col="dodgerblue4", cex=1)
+text(18.75,1.25, "Warm\n  Dry", font=2, col="dodgerblue4", cex=1)
+text(13.15,1.25, "Cold\nDry", font=2, col="dodgerblue4", cex=1)
+text(13.15,5.85, "Cold\nWet", font=2, col="dodgerblue4", cex=1)
+text(summer$mean_Temp, summer$mean_ppt, labels=summer$year, cex=0.7, font=1)
