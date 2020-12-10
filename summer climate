@@ -101,11 +101,11 @@ summer = ntl %>%
 plot(summer$year, summer$mean_ppt, type="o", pch=19, col="dodgerblue3")
 plot(summer$year, summer$mean_Temp, type="o", pch=19, col="darkorange2")
 
-plot(summer$mean_Temp, summer$mean_ppt, pch=20, col="white",
-     xlab="Mean Summer Daily Temp (C)", ylab="Mean Summer Daily Precipitation (mm)", 
-     xlim=c(13,19), ylim=c(1,6))
-text(18.75,5.85, "Warm\n  Wet", font=2, col="dodgerblue4", cex=1)
-text(18.75,1.25, "Warm\n  Dry", font=2, col="dodgerblue4", cex=1)
-text(13.15,1.25, "Cold\nDry", font=2, col="dodgerblue4", cex=1)
-text(13.15,5.85, "Cold\nWet", font=2, col="dodgerblue4", cex=1)
-text(summer$mean_Temp, summer$mean_ppt, labels=summer$year, cex=0.7, font=1)
+plot(summer$mean_maxTemp, summer$mean_ppt, pch=20, col="white",
+     xlab="Mean Summer Maximum Daily Temp (C)", ylab="Mean Summer Daily Precipitation (mm)", 
+     xlim=c(20, 27), ylim=c(1,6))
+text(26.5,5.85, "Warm\n  Wet", font=2, col="dodgerblue4", cex=1)
+text(26.5,1.25, "Warm\n  Dry", font=2, col="dodgerblue4", cex=1)
+text(20.5,1.25, "Cold\nDry", font=2, col="dodgerblue4", cex=1)
+text(20.5,5.85, "Cold\nWet", font=2, col="dodgerblue4", cex=1)
+text(summer$mean_maxTemp, summer$mean_ppt, labels=summer$year, cex=0.7, font=1)
