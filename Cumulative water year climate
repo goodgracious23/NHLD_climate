@@ -1,0 +1,164 @@
+# Package ID: knb-lter-ntl.18.30 Cataloging System:https://pasta.edirepository.org.
+# Data set title: Minocqua Dam Daily Meteorological Data at North Temperate Lakes LTER 1978 - current.
+# Data set creator:  Timothy Kratz - University of Wisconsin 
+# Metadata Provider:  NTL Information Manager - University of Wisconsin 
+# Contact:  NTL Information Manager -  University of Wisconsin  - ntl.infomgr@gmail.com
+# Stylesheet v2.11 for metadata conversion into program: John H. Porter, Univ. Virginia, jporter@virginia.edu 
+
+inUrl1  <- "https://pasta.lternet.edu/package/data/eml/knb-lter-ntl/18/30/34ec9386a894ba332529349d24154333" 
+infile1 <- tempfile()
+try(download.file(inUrl1,infile1,method="curl"))
+if (is.na(file.size(infile1))) download.file(inUrl1,infile1,method="auto")
+
+
+dt1 <-read.csv(infile1,header=F 
+               ,skip=1
+               ,sep=","  
+               ,quot='"' 
+               , col.names=c(
+                 "year4",     
+                 "sampledate",     
+                 "min_air_temp",     
+                 "max_air_temp",     
+                 "precip",     
+                 "snow",     
+                 "snow_depth",     
+                 "data_status"    ), check.names=TRUE)
+
+unlink(infile1)
+
+# Fix any interval or ratio columns mistakenly read in as nominal and nominal columns read as numeric or dates read as strings
+
+if (class(dt1$year4)=="factor") dt1$year4 <-as.numeric(levels(dt1$year4))[as.integer(dt1$year4) ]               
+if (class(dt1$year4)=="character") dt1$year4 <-as.numeric(dt1$year4)                                   
+# attempting to convert dt1$sampledate dateTime string to R date structure (date or POSIXct)                                
+tmpDateFormat<-"%Y-%m-%d"
+tmp1sampledate<-as.Date(dt1$sampledate,format=tmpDateFormat)
+# Keep the new dates only if they all converted correctly
+if(length(tmp1sampledate) == length(tmp1sampledate[!is.na(tmp1sampledate)])){dt1$sampledate <- tmp1sampledate } else {print("Date conversion failed for dt1$sampledate. Please inspect the data and do the date conversion yourself.")}                                                                    
+rm(tmpDateFormat,tmp1sampledate) 
+if (class(dt1$min_air_temp)=="factor") dt1$min_air_temp <-as.numeric(levels(dt1$min_air_temp))[as.integer(dt1$min_air_temp) ]               
+if (class(dt1$min_air_temp)=="character") dt1$min_air_temp <-as.numeric(dt1$min_air_temp)
+if (class(dt1$max_air_temp)=="factor") dt1$max_air_temp <-as.numeric(levels(dt1$max_air_temp))[as.integer(dt1$max_air_temp) ]               
+if (class(dt1$max_air_temp)=="character") dt1$max_air_temp <-as.numeric(dt1$max_air_temp)
+if (class(dt1$precip)=="factor") dt1$precip <-as.numeric(levels(dt1$precip))[as.integer(dt1$precip) ]               
+if (class(dt1$precip)=="character") dt1$precip <-as.numeric(dt1$precip)
+if (class(dt1$snow)=="factor") dt1$snow <-as.numeric(levels(dt1$snow))[as.integer(dt1$snow) ]               
+if (class(dt1$snow)=="character") dt1$snow <-as.numeric(dt1$snow)
+if (class(dt1$snow_depth)=="factor") dt1$snow_depth <-as.numeric(levels(dt1$snow_depth))[as.integer(dt1$snow_depth) ]               
+if (class(dt1$snow_depth)=="character") dt1$snow_depth <-as.numeric(dt1$snow_depth)
+if (class(dt1$data_status)!="factor") dt1$data_status<- as.factor(dt1$data_status)
+
+# Convert Missing Values to NA for non-dates
+
+
+
+# Here is the structure of the input data frame:
+str(dt1)                            
+attach(dt1)                            
+# The analyses below are basic descriptions of the variables. After testing, they should be replaced.                 
+
+summary(year4)
+summary(sampledate)
+summary(min_air_temp)
+summary(max_air_temp)
+summary(precip)
+summary(snow)
+summary(snow_depth)
+summary(data_status) 
+# Get more details on character variables
+
+summary(as.factor(dt1$data_status))
+detach(dt1)               
+
+#=================================================
+# Analysis
+library(tidyverse)
+library(lubridate)
+
+#Rename the data set to something that makes sense
+ntl = dt1 %>%
+  rename(year = year4) %>%
+  # Convert the sampling date to day of year and other useful calendar values
+  mutate(year = as.numeric(year),
+         date = ymd(sampledate),
+         date = as.POSIXct(date),
+         month = month(date),
+         doy = yday(date),
+         yfrac = year+(doy/365)) %>%
+  # set water year (move Oct, Nov, Dec to following year)
+  mutate(wateryr = if_else(month %in% c(10,11,12), year+1, year)) %>%
+  # set water doy (set Oct 1 to DOY 1)
+  mutate(waterdoy = case_when(.$month %in% c(10,11,12) ~ .$doy-273,
+                              .$month %in% c(1:9) ~ .$doy+92)) %>%
+  # Replace the "NA" days of precip with a zero (assumption is no precip on those days)
+  mutate(ppt_noNA = replace_na(precip, 0))
+
+ntl <- ntl[order(ntl$wateryr, ntl$waterdoy),]
+
+#Plot the cumulative precip by water year
+windows(height=9, width=6)
+plot(cumsum(ntl[ntl$year==1979, "ppt_noNA"]),
+     type="l", xlim=c(0,382), ylim=c(0,1200), col="gray",
+     xlab="Day of Year", ylab = "Cumulative Water Year Precipitation (mm)", xaxt="n")
+axis(side=1, at=c(1,32,62,93,124,152,183,213,244,274,305,336),
+     labels =c("Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept"), las=2)
+lines(cumsum(ntl[ntl$wateryr==1980, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1981, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1982, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1983, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1984, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1985, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1986, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1987, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1988, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1989, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1990, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1991, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1992, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1983, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1984, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1985, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1986, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1987, "ppt_noNA"]), type="l", col="aquamarine4", lwd=2)
+text(381, 565, "1987", col = "aquamarine4", cex=0.8)
+lines(cumsum(ntl[ntl$wateryr==1988, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1989, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1990, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1991, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1992, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1993, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1994, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1995, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1996, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1997, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==1998, "ppt_noNA"]), type="l", col="aquamarine4", lwd=2)
+text(381, 610, "1998", col = "aquamarine4", cex=0.8)
+lines(cumsum(ntl[ntl$wateryr==1999, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==2000, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==2001, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==2002, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==2003, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==2004, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==2005, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==2006, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==2007, "ppt_noNA"]), type="l", col="aquamarine4", lwd=2)
+text(381, 587, "2007", col = "aquamarine4", cex=0.8)
+lines(cumsum(ntl[ntl$wateryr==2008, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==2009, "ppt_noNA"]), type="l", col="aquamarine4", lwd=2)
+text(381, 540, "2009", col = "aquamarine4", cex=0.8)
+lines(cumsum(ntl[ntl$wateryr==2010, "ppt_noNA"]), type="l",  col="dodgerblue4", lwd=2)
+text(381, 1068, "2010", col = "dodgerblue4", cex=0.8)
+lines(cumsum(ntl[ntl$wateryr==2011, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==2012, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==2013, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==2014, "ppt_noNA"]), type="l", col="dodgerblue4", lwd=2)
+text(381, 1112, "2014", col = "dodgerblue4", cex=0.8)
+lines(cumsum(ntl[ntl$wateryr==2015, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==2016, "ppt_noNA"]), type="l", col="dodgerblue4", lwd=2)
+text(381, 1219, "2016", col = "dodgerblue4", cex=0.8)
+lines(cumsum(ntl[ntl$wateryr==2017, "ppt_noNA"]), type="l", col="dodgerblue4", lwd=2)
+text(381, 1134, "2017", col = "dodgerblue4", cex=0.8)
+lines(cumsum(ntl[ntl$wateryr==2018, "ppt_noNA"]), type="l", col="gray")
+lines(cumsum(ntl[ntl$wateryr==2019, "ppt_noNA"]), type="l", col="dodgerblue4", lwd=2)
+text(381, 1090, "2019", col = "dodgerblue4", cex=0.8)
